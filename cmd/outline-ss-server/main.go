@@ -28,9 +28,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Jigsaw-Code/outline-ss-server/internal/dbase/postgres"
+
 	"github.com/Jigsaw-Code/outline-ss-server/service"
 	"github.com/Jigsaw-Code/outline-ss-server/service/metrics"
 	ss "github.com/Jigsaw-Code/outline-ss-server/shadowsocks"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/op/go-logging"
 	"github.com/oschwald/geoip2-golang"
 	"github.com/prometheus/client_golang/prometheus"
@@ -208,6 +211,30 @@ func readConfig(filename string) (*Config, error) {
 	}
 	err = yaml.Unmarshal(configData, &config)
 	return &config, err
+}
+func readDB(dbc *pgxpool.Pool) (*Config, error) {
+	var conf Config
+	c := postgres.NewPool(dbc)
+	x, err := c.Load()
+	if err != nil {
+		return nil, err
+	}
+	for _, v := range x {
+
+		conf.Keys = append(conf.Keys, struct {
+			ID     string
+			Port   int
+			Cipher string
+			Secret string
+		}{
+			ID:     v.ID,
+			Port:   v.Port,
+			Cipher: v.Cipher,
+			Secret: v.Secret,
+		})
+
+	}
+	return &conf, nil
 }
 
 func main() {

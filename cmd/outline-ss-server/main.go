@@ -124,14 +124,14 @@ func (s *SSServer) removePort(portNum int) error {
 	return nil
 }
 
-func (s *SSServer) loadConfig(filename string) error {
+func (s *SSServer) loadConfig(path string) error {
 	var config *Config
 	var err error
-	if os.Getenv("DATABASE_URL") != "" {
-		config, err = readDB()
+	if strings.HasPrefix(path, "postgres://") {
+		config, err = readDB(path)
 
 	} else {
-		config, err = readConfig(filename)
+		config, err = readConfig(path)
 	}
 
 	if err != nil {
@@ -187,23 +187,23 @@ func (s *SSServer) Stop() error {
 }
 
 // RunSSServer starts a shadowsocks server running, and returns the server or an error.
-func RunSSServer(filename string, natTimeout time.Duration, sm metrics.ShadowsocksMetrics, replayHistory int) (*SSServer, error) {
+func RunSSServer(path string, natTimeout time.Duration, sm metrics.ShadowsocksMetrics, replayHistory int) (*SSServer, error) {
 	server := &SSServer{
 		natTimeout:  natTimeout,
 		m:           sm,
 		replayCache: service.NewReplayCache(replayHistory),
 		ports:       make(map[int]*ssPort),
 	}
-	err := server.loadConfig(filename)
+	err := server.loadConfig(path)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to load config file %v: %v", filename, err)
+		return nil, fmt.Errorf("Failed to load config file %v: %v", path, err)
 	}
 	sigHup := make(chan os.Signal, 1)
 	signal.Notify(sigHup, syscall.SIGHUP)
 	go func() {
 		for range sigHup {
 			logger.Info("Updating config")
-			if err := server.loadConfig(filename); err != nil {
+			if err := server.loadConfig(path); err != nil {
 				logger.Errorf("Could not reload config: %v", err)
 			}
 		}
@@ -229,8 +229,9 @@ func readConfig(filename string) (*Config, error) {
 	err = yaml.Unmarshal(configData, &config)
 	return &config, err
 }
-func readDB() (*Config, error) {
-	dbConf, err := pgxpool.ParseConfig(os.Getenv("DATABASE_URL"))
+
+func readDB(url string) (*Config, error) {
+	dbConf, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable parse database URL: %v\n", err)
 		return nil, err
@@ -280,7 +281,7 @@ func main() {
 		Verbose       bool
 		Version       bool
 	}
-	flag.StringVar(&flags.ConfigFile, "config", "", "Configuration filename")
+	flag.StringVar(&flags.ConfigFile, "config", "", "Configuration filename or database url postres://user:password@hostname:port/database")
 	flag.StringVar(&flags.MetricsAddr, "metrics", "", "Address for the Prometheus metrics")
 	flag.StringVar(&flags.IPCountryDB, "ip_country_db", "", "Path to the ip-to-country mmdb file")
 	flag.DurationVar(&flags.natTimeout, "udptimeout", defaultNatTimeout, "UDP tunnel timeout")

@@ -16,6 +16,7 @@ package main
 
 import (
 	"container/list"
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -92,8 +93,16 @@ func (s *SSServer) startPort(portNum int) error {
 	port.tcpService = service.NewTCPService(port.cipherList, &s.replayCache, s.m, tcpReadTimeout)
 	port.udpService = service.NewUDPService(s.natTimeout, port.cipherList, s.m)
 	s.ports[portNum] = port
-	go port.tcpService.Serve(listener)
-	go port.udpService.Serve(packetConn)
+	go func() {
+		if err := port.tcpService.Serve(listener); err != nil {
+			logger.Errorf("Error serve tcp: %v", err)
+		}
+	}()
+	go func() {
+		if err := port.udpService.Serve(packetConn); err != nil {
+			logger.Errorf("Error serve tcp: %v", err)
+		}
+	}()
 	return nil
 }
 
@@ -116,9 +125,17 @@ func (s *SSServer) removePort(portNum int) error {
 }
 
 func (s *SSServer) loadConfig(filename string) error {
-	config, err := readConfig(filename)
+	var config *Config
+	var err error
+	if os.Getenv("DATABASE_URL") != "" {
+		config, err = readDB()
+
+	} else {
+		config, err = readConfig(filename)
+	}
+
 	if err != nil {
-		return fmt.Errorf("Failed to read config file %v: %v", filename, err)
+		return fmt.Errorf("Failed to read config: %v", err)
 	}
 
 	portChanges := make(map[int]int)
@@ -212,9 +229,25 @@ func readConfig(filename string) (*Config, error) {
 	err = yaml.Unmarshal(configData, &config)
 	return &config, err
 }
-func readDB(dbc *pgxpool.Pool) (*Config, error) {
+func readDB() (*Config, error) {
+	dbConf, err := pgxpool.ParseConfig(os.Getenv("DATABASE_URL"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable parse database URL: %v\n", err)
+		return nil, err
+	}
+	dbConf.MaxConns = 2
+	dbConf.MaxConnIdleTime = 30 * time.Second
+	dbConf.MaxConnLifetime = 30 * time.Second
+	dbConf.MinConns = 1
+	pool, err := pgxpool.NewWithConfig(context.Background(), dbConf)
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
+
+		return nil, err
+	}
 	var conf Config
-	c := postgres.NewPool(dbc)
+	c := postgres.NewPool(pool)
 	x, err := c.Load()
 	if err != nil {
 		return nil, err

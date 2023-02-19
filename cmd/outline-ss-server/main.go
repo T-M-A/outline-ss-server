@@ -127,9 +127,8 @@ func (s *SSServer) removePort(portNum int) error {
 func (s *SSServer) loadConfig(path string) error {
 	var config *Config
 	var err error
-	if strings.HasPrefix(path, "postgres://") {
+	if strings.HasPrefix(path, "postgres:") {
 		config, err = readDB(path)
-
 	} else {
 		config, err = readConfig(path)
 	}

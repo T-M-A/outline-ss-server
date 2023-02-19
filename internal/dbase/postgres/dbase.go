@@ -40,7 +40,7 @@ func (c *client) Load() ([]dbase.ConfigRow, error) {
 		defer rows.Close()
 		for rows.Next() {
 			v := dbase.ConfigRow{}
-			if err := rows.Scan(&v); err != nil {
+			if err := rows.Scan(&v.ID, &v.Port, &v.Cipher, &v.Secret); err != nil {
 				return nil, err
 			}
 			cr = append(cr, v)

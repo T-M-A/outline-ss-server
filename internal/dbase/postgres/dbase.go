@@ -35,7 +35,7 @@ func (c *client) Load() ([]dbase.ConfigRow, error) {
 	case errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded):
 		return nil, err
 	case err != nil:
-		return nil, errors.New("ERR")
+		return nil, err
 	default:
 		defer rows.Close()
 		for rows.Next() {

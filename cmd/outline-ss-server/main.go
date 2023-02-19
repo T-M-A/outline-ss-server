@@ -135,7 +135,8 @@ func (s *SSServer) loadConfig(path string) error {
 	}
 
 	if err != nil {
-		return fmt.Errorf("Failed to read config: %v", err)
+		return err
+
 	}
 
 	portChanges := make(map[int]int)
@@ -245,7 +246,7 @@ func readDB(url string) (*Config, error) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
 
-		return nil, err
+		return nil, fmt.Errorf("Unable to connect to database: %v,%v", url, err)
 	}
 	var conf Config
 	c := postgres.NewPool(pool)
